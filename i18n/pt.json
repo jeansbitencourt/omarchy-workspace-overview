@@ -1,0 +1,18 @@
+{
+  "title": "VISÃO GERAL DOS WORKSPACES",
+  "search": "Digite para filtrar janelas...",
+  "empty": "// ESPAÇO DE TRABALHO VAZIO //",
+  "active": "ATIVO",
+  "focused": "FOCADO",
+  "floating": "FLUTUANTE",
+  "tiled": "LADO A LADO",
+  "windows": {
+    "one": "%1 janela",
+    "other": "%1 janelas"
+  },
+  "workspaces": {
+    "one": "%1 espaço",
+    "other": "%1 espaços"
+  },
+  "hints": "[TAB / SETAS] Navegar  •  [ENTER] Focar  •  [1-9] Mudar de Espaço  •  [ESC] Fechar"
+}

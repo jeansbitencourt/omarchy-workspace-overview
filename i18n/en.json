@@ -1,0 +1,18 @@
+{
+  "title": "WORKSPACE OVERVIEW",
+  "search": "Type to filter windows...",
+  "empty": "// EMPTY WORKSPACE //",
+  "active": "ACTIVE",
+  "focused": "FOCUSED",
+  "floating": "FLOAT",
+  "tiled": "TILED",
+  "windows": {
+    "one": "%1 window",
+    "other": "%1 windows"
+  },
+  "workspaces": {
+    "one": "%1 workspace",
+    "other": "%1 workspaces"
+  },
+  "hints": "[TAB / ARROWS] Navigate  •  [ENTER] Focus  •  [1-9] Switch Workspace  •  [ESC] Close"
+}

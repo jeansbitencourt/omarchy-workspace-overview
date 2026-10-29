@@ -1,0 +1,6 @@
+# Cache & temporary captures
+/tmp/
+*.log
+*.tmp
+*.bak.*
+.DS_Store

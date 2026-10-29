@@ -2,14 +2,13 @@
 
 A modern, GNOME-inspired workspace & window overview plugin for [Omarchy](https://omarchy.org) and [Hyprland](https://hyprland.org), built using **Quickshell (Qt 6 / QML)** and Wayland layer-shell.
 
-![Workspace Overview Banner](https://raw.githubusercontent.com/jean/omarchy-workspace-overview/main/preview.png)
-
 ---
 
 ## ✨ Features
 
 - **🪟 Real Live Window Previews**: Captures high-performance snapshots of mapped windows via `grim` instead of showing generic icons.
 - **✨ Frosted Glass & Background Blur**: Translucent frosted glass backdrop with compositor blur effect using Hyprland's `layerrule`.
+- **🖥️ Simultaneous Multi-Monitor Display**: Opens on all connected monitors at the same time (`eDP-1`, `HDMI-A-1`, etc.), displaying each monitor's respective workspaces and open windows.
 - **🎯 Active Workspaces Only**: Displays only workspaces that currently have open windows, keeping the overview focused and clutter-free.
 - **🧩 Centered Mosaic Grid**: Automatically calculates proportional mosaic card dimensions, preserving each application's true aspect ratio.
 - **🔍 Quick Search & Filter**: Instant search input pill to filter open windows by window title or application class.

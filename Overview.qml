@@ -25,6 +25,7 @@ Item {
   property var monitorWorkspaces: ({})
 
   signal requestFocus()
+  signal previewsUpdated()
 
   // Glassy / translucent styling tokens
   readonly property color scrimColor: Qt.rgba(0.04, 0.06, 0.10, 0.45)
@@ -47,13 +48,14 @@ Item {
       openSafetyTimer.stop()
       root.opened = true
       root.rebuild()
+      root.previewsUpdated()
       Qt.callLater(function() { root.requestFocus() })
     }
   }
 
   Timer {
     id: openSafetyTimer
-    interval: 160
+    interval: 180
     repeat: false
     onTriggered: {
       root.opened = true
@@ -654,6 +656,26 @@ Item {
                           hoverEnabled: true
                           cursorShape: Qt.PointingHandCursor
                           onClicked: root.activateWindow(modelData)
+                        }
+
+                        function reloadPreview() {
+                          if (previewImg.status !== Image.Ready) {
+                            var s = previewImg.source
+                            previewImg.source = ""
+                            previewImg.source = s
+                          }
+                        }
+
+                        Connections {
+                          target: root
+                          function onPreviewsUpdated() { winTile.reloadPreview() }
+                        }
+
+                        Connections {
+                          target: panelWin
+                          function onVisibleChanged() {
+                            if (panelWin.visible) winTile.reloadPreview()
+                          }
                         }
 
                         // Close Button (✕)

@@ -42,7 +42,7 @@ Item {
 
   Timer {
     id: bgCaptureDebounce
-    interval: 250
+    interval: 350
     repeat: false
     onTriggered: {
       var isOverviewOpen = false
@@ -59,7 +59,8 @@ Item {
     target: Hyprland
     function onRawEvent(event) {
       var name = event ? String(event.name) : ""
-      if (name === "workspacev2" || name === "workspace" || name === "focusedmon") {
+      if (name === "workspacev2" || name === "workspace" || name === "focusedmon" ||
+          name === "openwindow" || name === "closewindow") {
         bgCaptureDebounce.restart()
       }
     }

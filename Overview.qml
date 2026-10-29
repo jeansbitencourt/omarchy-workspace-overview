@@ -273,6 +273,10 @@ Item {
         property int selectedIndex: 0
         property bool contentRevealed: false
 
+        onActiveWsIdChanged: {
+          viewWsId = activeWsId
+        }
+
         onVisibleChanged: {
           if (visible) {
             viewWsId = activeWsId
@@ -515,6 +519,7 @@ Item {
                           cursorShape: Qt.PointingHandCursor
                           onClicked: {
                             panelWin.viewWsId = modelData.id
+                            root.focusWorkspace(modelData.id)
                           }
                         }
 

@@ -34,6 +34,41 @@ Item {
     onTriggered: { root.cooldown = false }
   }
 
+  // Background capture process to keep inactive workspaces authentic as user works
+  Process {
+    id: bgCaptureProc
+    command: [Quickshell.env("HOME") + "/.config/omarchy/plugins/jean.workspace-overview/capture-previews.sh"]
+  }
+
+  Timer {
+    id: bgCaptureDebounce
+    interval: 250
+    repeat: false
+    onTriggered: {
+      var isOverviewOpen = false
+      if (root.shell && typeof root.shell.isPluginOpen === "function") {
+        isOverviewOpen = root.shell.isPluginOpen("jean.workspace-overview")
+      }
+      if (!isOverviewOpen && !bgCaptureProc.running) {
+        bgCaptureProc.running = true
+      }
+    }
+  }
+
+  Connections {
+    target: Hyprland
+    function onRawEvent(event) {
+      var name = event ? String(event.name) : ""
+      if (name === "workspacev2" || name === "workspace" || name === "focusedmon") {
+        bgCaptureDebounce.restart()
+      }
+    }
+  }
+
+  Component.onCompleted: {
+    bgCaptureDebounce.restart()
+  }
+
   // Hot corner surface placed on each screen in the top-left corner
   Variants {
     id: screenCorners
@@ -53,8 +88,8 @@ Item {
           left: true
         }
 
-        implicitWidth: 28
-        implicitHeight: 28
+        implicitWidth: 4
+        implicitHeight: 4
 
         WlrLayershell.namespace: "omarchy-overview-hotcorner"
         WlrLayershell.layer: WlrLayer.Overlay
@@ -63,8 +98,8 @@ Item {
 
         Item {
           anchors.fill: parent
-          implicitWidth: 28
-          implicitHeight: 28
+          implicitWidth: 4
+          implicitHeight: 4
 
           MouseArea {
             anchors.fill: parent

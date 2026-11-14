@@ -10,6 +10,7 @@ A modern, GNOME-inspired workspace & window overview plugin for [Omarchy](https:
 - **✨ Frosted Glass & Background Blur**: Translucent frosted glass backdrop with compositor blur effect using Hyprland's `layerrule`.
 - **🖥️ Simultaneous Multi-Monitor Display**: Opens on all connected monitors at the same time (`eDP-1`, `HDMI-A-1`, etc.), displaying each monitor's respective workspaces and open windows.
 - **🎯 Workspace Map**: Shows occupied workspaces plus the active workspace on each monitor, with their windows visible together.
+- **🔀 Two Views**: Toggle between the workspace map and a focused view with the active workspace enlarged. The last view is saved in `~/.config/omarchy/workspace-overview.json`.
 - **🧩 Window Previews**: Each workspace card contains scrollable window thumbnails.
 - **🔍 Quick Search & Filter**: Instant search input pill to filter open windows by window title or application class.
 - **🖥️ Multi-Monitor Aware**: Detects active screen focus dynamically, appearing on the display you are currently working on (`eDP-1`, `HDMI-A-1`, etc.).
@@ -90,6 +91,7 @@ git clone https://github.com/jean/omarchy-workspace-overview.git ~/.config/omarc
 | **Select / Focus Window** | `Enter` or `Left Click` on card |
 | **Close Window** | Click `✕` button on top-right of window card |
 | **Switch Workspace** | Click the arrow on a workspace card, or press `1–9` while the overview is open |
+| **Change View** | Click the view button beside search, or press `V` while the overview is open |
 | **Dismiss Overview** | `Escape` or click backdrop |
 
 ---

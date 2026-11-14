@@ -18,6 +18,8 @@ Item {
   property bool opened: false
   property string filterText: ""
   property int activeWsId: 1
+  property string viewMode: "map"
+  readonly property string viewModePath: Quickshell.env("HOME") + "/.config/omarchy/workspace-overview.json"
 
   property var wsWindowsMap: ({})
   property var wsMonitorMap: ({})
@@ -26,6 +28,29 @@ Item {
 
   signal requestFocus()
   signal previewsUpdated()
+
+  FileView {
+    id: viewModeFile
+    path: root.viewModePath
+    blockLoading: true
+    atomicWrites: true
+    printErrors: false
+    onLoaded: root.loadViewMode()
+  }
+
+  function loadViewMode() {
+    try {
+      var saved = JSON.parse(String(viewModeFile.text() || "{}"))
+      if (saved.mode === "map" || saved.mode === "focus") root.viewMode = saved.mode
+    } catch (e) {
+      // An absent or invalid preference keeps the map as the default.
+    }
+  }
+
+  function toggleViewMode() {
+    root.viewMode = root.viewMode === "map" ? "focus" : "map"
+    viewModeFile.setText(JSON.stringify({ mode: root.viewMode }) + "\n")
+  }
 
   // Glassy / translucent styling tokens
   readonly property color scrimColor: Qt.rgba(0.04, 0.06, 0.10, 0.45)
@@ -304,6 +329,16 @@ Item {
         }
 
         readonly property var screenWorkspaces: (root.monitorWorkspaces && root.monitorWorkspaces[monName]) ? root.monitorWorkspaces[monName] : []
+        readonly property var displayedWorkspaces: {
+          if (root.viewMode !== "focus") return screenWorkspaces
+          var ordered = screenWorkspaces.slice()
+          ordered.sort(function(a, b) {
+            if (a.isActive !== b.isActive) return a.isActive ? -1 : 1
+            return a.id - b.id
+          })
+          return ordered
+        }
+
         readonly property var currentWindows: {
           var filterLower = root.filterText.toLowerCase().trim()
           var matches = []
@@ -400,6 +435,9 @@ Item {
                 root.focusWorkspace(targetWs)
                 root.dismiss()
                 event.accepted = true
+              } else if (event.key === Qt.Key_V && root.filterText.length === 0 && !event.modifiers) {
+                root.toggleViewMode()
+                event.accepted = true
               } else if (event.key === Qt.Key_Backspace) {
                 if (root.filterText.length > 0) {
                   root.filterText = root.filterText.substring(0, root.filterText.length - 1)
@@ -418,10 +456,10 @@ Item {
               spacing: 20
 
               // ============================================ TOP HEADER
-              ColumnLayout {
+              RowLayout {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignHCenter
-                spacing: 10
+                spacing: 12
 
                 // Gnome Search Pill
                 Rectangle {
@@ -468,6 +506,29 @@ Item {
                   }
                 }
 
+                Rectangle {
+                  implicitWidth: modeLabel.implicitWidth + 28
+                  implicitHeight: 38
+                  radius: 19
+                  color: root.glassCardBg
+                  border.color: root.accentCol
+                  border.width: 1
+                  Text {
+                    id: modeLabel
+                    anchors.centerIn: parent
+                    textFormat: Text.PlainText
+                    text: root.viewMode === "map" ? strings.t("modeMap") : strings.t("modeFocus")
+                    color: root.fg
+                    font.family: root.monoFont
+                    font.pixelSize: Style.font.caption
+                  }
+                  MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.toggleViewMode()
+                  }
+                }
               }
 
               // All workspaces and their windows share the same canvas.
@@ -483,12 +544,13 @@ Item {
                 GridLayout {
                   id: workspaceGrid
                   width: workspaceScroll.width
-                  columns: width >= 850 ? 2 : 1
+                  columns: root.viewMode === "focus" ? (panelWin.displayedWorkspaces.length > 1 ? 2 : 1)
+                    : (width >= 850 ? 2 : 1)
                   columnSpacing: 18
                   rowSpacing: 18
 
                   Repeater {
-                    model: panelWin.screenWorkspaces
+                    model: panelWin.displayedWorkspaces
 
                     delegate: Rectangle {
                       id: workspaceCard
@@ -504,8 +566,14 @@ Item {
                       readonly property int tileColumns: width < 500 ? 2 : 3
                       readonly property real tileWidth: (width - 32 - (tileColumns - 1) * 10) / tileColumns
 
-                      Layout.fillWidth: true
-                      Layout.preferredHeight: Math.max(220, Math.min(340, workspaceScroll.height * 0.48))
+                      Layout.preferredWidth: root.viewMode === "focus" && panelWin.displayedWorkspaces.length > 1
+                        ? (modelData.isActive ? workspaceGrid.width * 0.68 - 9 : workspaceGrid.width * 0.32 - 9)
+                        : (workspaceGrid.width - (workspaceGrid.columns - 1) * workspaceGrid.columnSpacing) / workspaceGrid.columns
+                      Layout.preferredHeight: root.viewMode === "focus"
+                        ? (modelData.isActive ? Math.max(360, workspaceScroll.height - 4) : Math.max(145, Math.min(220, workspaceScroll.height * 0.28)))
+                        : Math.max(220, Math.min(340, workspaceScroll.height * 0.48))
+                      Layout.rowSpan: root.viewMode === "focus" && modelData.isActive
+                        ? Math.max(1, panelWin.displayedWorkspaces.length - 1) : 1
                       radius: 16
                       color: root.glassCardBg
                       border.color: modelData.isActive ? root.accentCol : root.glassBorder
@@ -689,7 +757,7 @@ Item {
                     font.family: root.monoFont
                     font.pixelSize: Style.font.caption
                     color: root.mutedCol
-                    text: strings.t("hints")
+                    text: strings.t("hints") + "  •  [V] " + strings.t("toggleMode")
                   }
                 }
               }

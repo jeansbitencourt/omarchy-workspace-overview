@@ -11,7 +11,7 @@ A modern, GNOME-inspired workspace & window overview plugin for [Omarchy](https:
 - **🖥️ Simultaneous Multi-Monitor Display**: Opens on all connected monitors at the same time (`eDP-1`, `HDMI-A-1`, etc.), displaying each monitor's respective workspaces and open windows.
 - **🎯 Workspace Map**: Shows occupied workspaces plus the active workspace on each monitor, with their windows visible together.
 - **🔀 Two Views**: Toggle between the workspace map and a focused view with the active workspace enlarged. The last view is saved in `~/.config/omarchy/workspace-overview.json`.
-- **🧩 Window Previews**: Each workspace card contains scrollable window thumbnails.
+- **🧩 Adaptive Window Previews**: Workspace cards fill the available canvas based on how many workspaces are visible. Their scrollable thumbnails grow when more space is available.
 - **🔍 Quick Search & Filter**: Instant search input pill to filter open windows by window title or application class.
 - **🖥️ Multi-Monitor Aware**: Detects active screen focus dynamically, appearing on the display you are currently working on (`eDP-1`, `HDMI-A-1`, etc.).
 - **⚡ Dual Triggers**:

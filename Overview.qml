@@ -544,8 +544,17 @@ Item {
                 GridLayout {
                   id: workspaceGrid
                   width: workspaceScroll.width
+                  readonly property int mapColumns: {
+                    var count = panelWin.displayedWorkspaces.length
+                    if (count <= 1) return 1
+                    if (count <= 4) return width >= 850 ? 2 : 1
+                    return width >= 1500 ? 3 : (width >= 850 ? 2 : 1)
+                  }
+                  readonly property int mapRows: Math.max(1, Math.ceil(panelWin.displayedWorkspaces.length / mapColumns))
+                  readonly property real mapCardHeight: Math.max(220,
+                    (workspaceScroll.height - (mapRows - 1) * rowSpacing) / mapRows)
                   columns: root.viewMode === "focus" ? (panelWin.displayedWorkspaces.length > 1 ? 2 : 1)
-                    : (width >= 850 ? 2 : 1)
+                    : mapColumns
                   columnSpacing: 18
                   rowSpacing: 18
 
@@ -563,15 +572,23 @@ Item {
                                  win.appClass.toLowerCase().indexOf(query) !== -1
                         })
                       }
-                      readonly property int tileColumns: width < 500 ? 2 : 3
+                      readonly property int tileColumns: {
+                        var count = matchingWindows.length
+                        if (count <= 1 || width < 350) return 1
+                        if (count <= 4 || width < 650) return 2
+                        return 3
+                      }
                       readonly property real tileWidth: (width - 32 - (tileColumns - 1) * 10) / tileColumns
+                      readonly property int tileRows: Math.max(1, Math.ceil(matchingWindows.length / tileColumns))
+                      readonly property real tileHeight: Math.max(100, Math.min(tileWidth * 0.72,
+                        (height - 88 - (tileRows - 1) * 10) / tileRows))
 
                       Layout.preferredWidth: root.viewMode === "focus" && panelWin.displayedWorkspaces.length > 1
                         ? (modelData.isActive ? workspaceGrid.width * 0.68 - 9 : workspaceGrid.width * 0.32 - 9)
                         : (workspaceGrid.width - (workspaceGrid.columns - 1) * workspaceGrid.columnSpacing) / workspaceGrid.columns
                       Layout.preferredHeight: root.viewMode === "focus"
                         ? (modelData.isActive ? Math.max(360, workspaceScroll.height - 4) : Math.max(145, Math.min(220, workspaceScroll.height * 0.28)))
-                        : Math.max(220, Math.min(340, workspaceScroll.height * 0.48))
+                        : workspaceGrid.mapCardHeight
                       Layout.rowSpan: root.viewMode === "focus" && modelData.isActive
                         ? Math.max(1, panelWin.displayedWorkspaces.length - 1) : 1
                       radius: 16
@@ -630,15 +647,19 @@ Item {
                           }
                         }
 
-                        Flickable {
+                        Item {
                           Layout.fillWidth: true
                           Layout.fillHeight: true
-                          contentWidth: width
-                          contentHeight: windowGrid.implicitHeight
-                          clip: true
-                          boundsBehavior: Flickable.StopAtBounds
 
-                          GridLayout {
+                          Flickable {
+                            anchors.fill: parent
+                            contentWidth: width
+                            contentHeight: windowGrid.implicitHeight
+                            clip: true
+                            boundsBehavior: Flickable.StopAtBounds
+                            visible: workspaceCard.matchingWindows.length > 0
+
+                            GridLayout {
                             id: windowGrid
                             width: parent.width
                             columns: workspaceCard.tileColumns
@@ -653,7 +674,7 @@ Item {
                                 readonly property bool isSelected: panelWin.currentWindows.length > panelWin.selectedIndex &&
                                   panelWin.currentWindows[panelWin.selectedIndex].address === modelData.address
                                 Layout.preferredWidth: workspaceCard.tileWidth
-                                Layout.preferredHeight: Math.min(170, Math.max(105, workspaceCard.tileWidth * 0.72))
+                                Layout.preferredHeight: workspaceCard.tileHeight
                                 radius: 10
                                 color: root.glassCardHoverBg
                                 border.color: isSelected ? root.accentCol : root.glassBorder
@@ -718,6 +739,7 @@ Item {
                                   }
                                 }
                               }
+                            }
                             }
                           }
 

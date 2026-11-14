@@ -2,6 +2,7 @@
   "title": "VISÃO GERAL DOS WORKSPACES",
   "search": "Digite para filtrar janelas...",
   "empty": "// ESPAÇO DE TRABALHO VAZIO //",
+  "noMatches": "Nenhuma janela encontrada",
   "active": "ATIVO",
   "focused": "FOCADO",
   "floating": "FLUTUANTE",

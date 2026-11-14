@@ -2,6 +2,7 @@
   "title": "WORKSPACE OVERVIEW",
   "search": "Type to filter windows...",
   "empty": "// EMPTY WORKSPACE //",
+  "noMatches": "No matching windows",
   "active": "ACTIVE",
   "focused": "FOCUSED",
   "floating": "FLOAT",

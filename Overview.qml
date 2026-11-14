@@ -197,15 +197,16 @@ Item {
 
       monWsList.sort(function(a, b) { return a.id - b.id })
 
-      // Fallback if no workspaces have windows on this monitor
-      if (monWsList.length === 0) {
-        var actId = mon.activeWorkspace ? mon.activeWorkspace.id : (mon.id * 10 + 1)
+      // Keep the active workspace visible even when it has no windows.
+      var actId = mon.activeWorkspace ? mon.activeWorkspace.id : (mon.id * 10 + 1)
+      if (!monWsList.some(function(ws) { return ws.id === actId })) {
         monWsList.push({
           id: actId,
           name: String(actId),
           isActive: true,
           windows: []
         })
+        monWsList.sort(function(a, b) { return a.id - b.id })
       }
 
       nextMonWorkspaces[curMonName] = monWsList
@@ -303,34 +304,20 @@ Item {
         }
 
         readonly property var screenWorkspaces: (root.monitorWorkspaces && root.monitorWorkspaces[monName]) ? root.monitorWorkspaces[monName] : []
-
-        onScreenWorkspacesChanged: {
-          if (screenWorkspaces.length > 0) {
-            var found = false
-            for (var i = 0; i < screenWorkspaces.length; i++) {
-              if (screenWorkspaces[i].id === viewWsId) { found = true; break }
-            }
-            if (!found) viewWsId = screenWorkspaces[0].id
-          }
-        }
-
         readonly property var currentWindows: {
           var filterLower = root.filterText.toLowerCase().trim()
-          if (filterLower !== "") {
-            var matches = []
-            for (var i = 0; i < root.allWindows.length; i++) {
-              var win = root.allWindows[i]
-              if (win.monitorName === monName) {
-                if (win.title.toLowerCase().indexOf(filterLower) !== -1 ||
-                    win.appClass.toLowerCase().indexOf(filterLower) !== -1) {
-                  matches.push(win)
-                }
+          var matches = []
+          for (var i = 0; i < screenWorkspaces.length; i++) {
+            var windows = screenWorkspaces[i].windows
+            for (var j = 0; j < windows.length; j++) {
+              var win = windows[j]
+              if (filterLower === "" || win.title.toLowerCase().indexOf(filterLower) !== -1 ||
+                  win.appClass.toLowerCase().indexOf(filterLower) !== -1) {
+                matches.push(win)
               }
             }
-            return matches
           }
-
-          return (root.wsWindowsMap && root.wsWindowsMap[viewWsId]) ? root.wsWindowsMap[viewWsId] : []
+          return matches
         }
 
         // Translucent glassy scrim with desktop blur
@@ -411,6 +398,7 @@ Item {
               } else if (event.key >= Qt.Key_1 && event.key <= Qt.Key_9 && root.filterText.length === 0) {
                 var targetWs = event.key - Qt.Key_0
                 root.focusWorkspace(targetWs)
+                root.dismiss()
                 event.accepted = true
               } else if (event.key === Qt.Key_Backspace) {
                 if (root.filterText.length > 0) {
@@ -480,306 +468,199 @@ Item {
                   }
                 }
 
-                // Workspaces Pill Strip (Only workspaces with windows on this screen!)
-                Rectangle {
-                  id: wsBar
-                  Layout.alignment: Qt.AlignHCenter
-                  implicitHeight: 38
-                  implicitWidth: wsRow.width + 16
-                  visible: panelWin.screenWorkspaces.length > 0
-                  radius: 19
-                  color: root.glassCardBg
-                  border.color: root.glassBorder
-                  border.width: 1
-
-                  Row {
-                    id: wsRow
-                    anchors.centerIn: parent
-                    spacing: 6
-                    padding: 4
-
-                    Repeater {
-                      model: panelWin.screenWorkspaces
-
-                      delegate: Rectangle {
-                        id: wsChip
-                        required property var modelData
-
-                        readonly property bool isCurrent: modelData.id === panelWin.viewWsId
-                        width: chipRow.width + 20
-                        height: 30
-                        radius: 15
-
-                        color: isCurrent ? root.accentCol : (chipHover.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : "transparent")
-                        border.color: isCurrent ? root.accentCol : "transparent"
-                        border.width: 1
-
-                        MouseArea {
-                          id: chipHover
-                          anchors.fill: parent
-                          hoverEnabled: true
-                          cursorShape: Qt.PointingHandCursor
-                          onClicked: {
-                            panelWin.viewWsId = modelData.id
-                            root.focusWorkspace(modelData.id)
-                          }
-                        }
-
-                        Row {
-                          id: chipRow
-                          anchors.centerIn: parent
-                          spacing: 5
-
-                          Text {
-                            textFormat: Text.PlainText
-                            font.family: root.monoFont
-                            font.pixelSize: Style.font.caption
-                            font.bold: wsChip.isCurrent
-                            color: wsChip.isCurrent ? Commons.Color.background : root.fg
-                            text: "WS " + modelData.id
-                          }
-
-                          Text {
-                            textFormat: Text.PlainText
-                            font.family: root.monoFont
-                            font.pixelSize: 11
-                            color: wsChip.isCurrent ? Commons.Color.background : root.mutedCol
-                            text: "(" + modelData.windows.length + ")"
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
               }
 
-              // ============================================ MOSAIC STAGE (Gnome Overview Grid)
-              Item {
+              // All workspaces and their windows share the same canvas.
+              Flickable {
+                id: workspaceScroll
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                contentWidth: width
+                contentHeight: workspaceGrid.implicitHeight
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
 
-                // Empty state if workspace has no windows
-                Item {
-                  anchors.centerIn: parent
-                  visible: panelWin.currentWindows.length === 0
-                  width: 320
-                  height: 120
+                GridLayout {
+                  id: workspaceGrid
+                  width: workspaceScroll.width
+                  columns: width >= 850 ? 2 : 1
+                  columnSpacing: 18
+                  rowSpacing: 18
 
-                  ColumnLayout {
-                    anchors.centerIn: parent
-                    spacing: Style.spacing.sm
+                  Repeater {
+                    model: panelWin.screenWorkspaces
 
-                    Text {
-                      Layout.alignment: Qt.AlignHCenter
-                      textFormat: Text.PlainText
-                      font.family: root.monoFont
-                      font.pixelSize: 36
-                      color: root.mutedCol
-                      text: "󱓻"
-                    }
+                    delegate: Rectangle {
+                      id: workspaceCard
+                      required property var modelData
+                      readonly property var matchingWindows: {
+                        var query = root.filterText.toLowerCase().trim()
+                        if (query === "") return modelData.windows
+                        return modelData.windows.filter(function(win) {
+                          return win.title.toLowerCase().indexOf(query) !== -1 ||
+                                 win.appClass.toLowerCase().indexOf(query) !== -1
+                        })
+                      }
+                      readonly property int tileColumns: width < 500 ? 2 : 3
+                      readonly property real tileWidth: (width - 32 - (tileColumns - 1) * 10) / tileColumns
 
-                    Text {
-                      Layout.alignment: Qt.AlignHCenter
-                      textFormat: Text.PlainText
-                      font.family: root.monoFont
-                      font.pixelSize: Style.font.body
-                      color: root.mutedCol
-                      text: strings.t("empty")
-                    }
-                  }
-                }
+                      Layout.fillWidth: true
+                      Layout.preferredHeight: Math.max(220, Math.min(340, workspaceScroll.height * 0.48))
+                      radius: 16
+                      color: root.glassCardBg
+                      border.color: modelData.isActive ? root.accentCol : root.glassBorder
+                      border.width: modelData.isActive ? 2 : 1
+                      clip: true
 
-                // Centered Window Mosaic Grid
-                Item {
-                  anchors.fill: parent
-                  visible: panelWin.currentWindows.length > 0
+                      ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 16
+                        spacing: 12
 
-                  GridLayout {
-                    id: mosaicGrid
-                    anchors.centerIn: parent
-
-                    columns: {
-                      var count = panelWin.currentWindows.length
-                      if (count <= 1) return 1
-                      if (count <= 4) return 2
-                      if (count <= 6) return 3
-                      return 4
-                    }
-
-                    columnSpacing: 28
-                    rowSpacing: 28
-
-                    Repeater {
-                      model: panelWin.currentWindows
-
-                      delegate: Rectangle {
-                        id: winTile
-                        required property var modelData
-                        required property int index
-
-                        readonly property bool isSelected: panelWin.selectedIndex === index
-                        readonly property real winAspect: (modelData.width && modelData.height && modelData.height > 0)
-                          ? (modelData.width / modelData.height) : 1.33
-
-                        // Proportional card dimensions preserving true window aspect ratio
-                        height: {
-                          var count = panelWin.currentWindows.length
-                          if (count <= 1) return Math.min(480, stage.height * 0.62)
-                          if (count <= 2) return Math.min(360, stage.height * 0.54)
-                          if (count <= 4) return Math.min(280, (stage.height - 120) / 2)
-                          return Math.min(220, (stage.height - 120) / 2)
-                        }
-
-                        width: {
-                          var count = panelWin.currentWindows.length
-                          var maxW = (count <= 1) ? Math.min(760, stage.width * 0.70)
-                                   : (count <= 2) ? Math.min(520, (stage.width - 100) / 2)
-                                   : (count <= 4) ? Math.min(460, (stage.width - 100) / 2)
-                                   : Math.min(360, (stage.width - 120) / 3)
-                          var targetW = (height - 32) * winAspect
-                          return Math.max(240, Math.min(maxW, targetW))
-                        }
-
-                        radius: 14
-                        color: isSelected ? root.glassCardHoverBg : (tileHover.containsMouse ? root.glassCardHoverBg : root.glassCardBg)
-                        border.color: isSelected ? root.accentCol : (tileHover.containsMouse ? root.accentCol : root.glassBorder)
-                        border.width: isSelected ? 2 : 1
-
-                        scale: isSelected ? 1.02 : (tileHover.containsMouse ? 1.01 : 1.0)
-                        Behavior on scale {
-                          NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
-                        }
-
-                        MouseArea {
-                          id: tileHover
-                          anchors.fill: parent
-                          hoverEnabled: true
-                          cursorShape: Qt.PointingHandCursor
-                          onClicked: root.activateWindow(modelData)
-                        }
-
-                        function reloadPreview() {
-                          if (previewImg.status !== Image.Ready) {
-                            var s = previewImg.source
-                            previewImg.source = ""
-                            previewImg.source = s
-                          }
-                        }
-
-                        Connections {
-                          target: root
-                          function onPreviewsUpdated() { winTile.reloadPreview() }
-                        }
-
-                        Connections {
-                          target: panelWin
-                          function onVisibleChanged() {
-                            if (panelWin.visible) winTile.reloadPreview()
-                          }
-                        }
-
-                        // Close Button (✕)
-                        Rectangle {
-                          id: closeBtn
-                          anchors.top: parent.top
-                          anchors.right: parent.right
-                          anchors.margins: 8
-                          width: 24
-                          height: 24
-                          radius: 12
-                          z: 10
-                          color: closeHover.containsMouse ? Qt.rgba(0.9, 0.2, 0.2, 0.9) : Qt.rgba(0, 0, 0, 0.5)
-                          border.color: closeHover.containsMouse ? "transparent" : root.glassBorder
-                          border.width: 1
+                        RowLayout {
+                          Layout.fillWidth: true
+                          Layout.preferredHeight: 28
+                          spacing: 8
 
                           Text {
-                            anchors.centerIn: parent
                             textFormat: Text.PlainText
+                            text: "WS " + workspaceCard.modelData.id
+                            color: workspaceCard.modelData.isActive ? root.accentCol : root.fg
                             font.family: root.monoFont
-                            font.pixelSize: 12
-                            color: "#FFFFFF"
-                            text: "✕"
+                            font.pixelSize: 16
+                            font.bold: true
                           }
-
-                          MouseArea {
-                            id: closeHover
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                              root.closeWindow(modelData.address)
+                          Text {
+                            textFormat: Text.PlainText
+                            text: workspaceCard.modelData.isActive ? strings.t("active") : ""
+                            color: root.accentCol
+                            font.family: root.monoFont
+                            font.pixelSize: Style.font.caption
+                          }
+                          Item { Layout.fillWidth: true }
+                          Text {
+                            textFormat: Text.PlainText
+                            text: strings.tn("windows", workspaceCard.modelData.windows.length).arg(workspaceCard.modelData.windows.length)
+                            color: root.mutedCol
+                            font.family: root.monoFont
+                            font.pixelSize: Style.font.caption
+                          }
+                          Rectangle {
+                            width: 28
+                            height: 28
+                            radius: 14
+                            color: wsButtonHover.containsMouse ? root.glassCardHoverBg : "transparent"
+                            border.color: root.glassBorder
+                            Text { anchors.centerIn: parent; text: "↗"; color: root.fg; font.pixelSize: 16 }
+                            MouseArea {
+                              id: wsButtonHover
+                              anchors.fill: parent
+                              hoverEnabled: true
+                              cursorShape: Qt.PointingHandCursor
+                              onClicked: { root.focusWorkspace(workspaceCard.modelData.id); root.dismiss() }
                             }
                           }
                         }
 
-                        // Preview Image Thumbnail (True screen snapshot)
-                        Rectangle {
-                          id: thumbBox
-                          anchors.fill: parent
-                          anchors.topMargin: 6
-                          anchors.leftMargin: 6
-                          anchors.rightMargin: 6
-                          anchors.bottomMargin: 34
-                          radius: 10
+                        Flickable {
+                          Layout.fillWidth: true
+                          Layout.fillHeight: true
+                          contentWidth: width
+                          contentHeight: windowGrid.implicitHeight
                           clip: true
-                          color: Qt.rgba(0, 0, 0, 0.35)
+                          boundsBehavior: Flickable.StopAtBounds
 
-                          Image {
-                            id: previewImg
-                            anchors.fill: parent
-                            fillMode: Image.PreserveAspectFit
-                            asynchronous: true
-                            cache: false
-                            source: Util.fileUrl("/tmp/omarchy-window-previews/" + modelData.cleanAddress + ".jpg")
+                          GridLayout {
+                            id: windowGrid
+                            width: parent.width
+                            columns: workspaceCard.tileColumns
+                            columnSpacing: 10
+                            rowSpacing: 10
 
-                            Item {
-                              anchors.centerIn: parent
-                              visible: previewImg.status !== Image.Ready
-                              width: 48
-                              height: 48
+                            Repeater {
+                              model: workspaceCard.matchingWindows
+                              delegate: Rectangle {
+                                id: winTile
+                                required property var modelData
+                                readonly property bool isSelected: panelWin.currentWindows.length > panelWin.selectedIndex &&
+                                  panelWin.currentWindows[panelWin.selectedIndex].address === modelData.address
+                                Layout.preferredWidth: workspaceCard.tileWidth
+                                Layout.preferredHeight: Math.min(170, Math.max(105, workspaceCard.tileWidth * 0.72))
+                                radius: 10
+                                color: root.glassCardHoverBg
+                                border.color: isSelected ? root.accentCol : root.glassBorder
+                                border.width: isSelected ? 2 : 1
+                                clip: true
 
-                              Image {
-                                anchors.centerIn: parent
-                                width: 36
-                                height: 36
-                                source: Quickshell.iconPath(modelData.appClass, true) || Quickshell.iconPath("application-x-executable", true)
+                                MouseArea {
+                                  anchors.fill: parent
+                                  hoverEnabled: true
+                                  cursorShape: Qt.PointingHandCursor
+                                  onClicked: root.activateWindow(modelData)
+                                }
+                                Image {
+                                  id: previewImg
+                                  anchors.fill: parent
+                                  anchors.margins: 5
+                                  anchors.bottomMargin: 28
+                                  fillMode: Image.PreserveAspectFit
+                                  asynchronous: true
+                                  cache: false
+                                  source: Util.fileUrl("/tmp/omarchy-window-previews/" + modelData.cleanAddress + ".jpg")
+                                  function reload() { var previous = source; source = ""; source = previous }
+                                  Connections { target: root; function onPreviewsUpdated() { previewImg.reload() } }
+                                }
+                                Image {
+                                  anchors.centerIn: previewImg
+                                  width: 32
+                                  height: 32
+                                  visible: previewImg.status !== Image.Ready
+                                  source: Quickshell.iconPath(modelData.appClass, true) || Quickshell.iconPath("application-x-executable", true)
+                                }
+                                RowLayout {
+                                  anchors.left: parent.left
+                                  anchors.right: parent.right
+                                  anchors.bottom: parent.bottom
+                                  anchors.margins: 7
+                                  height: 22
+                                  spacing: 5
+                                  Image {
+                                    Layout.preferredWidth: 15
+                                    Layout.preferredHeight: 15
+                                    source: Quickshell.iconPath(modelData.appClass, true) || Quickshell.iconPath("application-x-executable", true)
+                                  }
+                                  Text {
+                                    Layout.fillWidth: true
+                                    textFormat: Text.PlainText
+                                    text: modelData.title || modelData.appClass
+                                    elide: Text.ElideRight
+                                    color: root.fg
+                                    font.family: root.bodyFont
+                                    font.pixelSize: Style.font.caption
+                                  }
+                                  Text {
+                                    text: "×"
+                                    color: root.mutedCol
+                                    font.pixelSize: 18
+                                    MouseArea {
+                                      anchors.fill: parent
+                                      cursorShape: Qt.PointingHandCursor
+                                      onClicked: root.closeWindow(modelData.address)
+                                    }
+                                  }
+                                }
                               }
                             }
                           }
-                        }
-
-                        // Card Footer Pill
-                        RowLayout {
-                          anchors.left: parent.left
-                          anchors.right: parent.right
-                          anchors.bottom: parent.bottom
-                          anchors.leftMargin: 12
-                          anchors.rightMargin: 12
-                          height: 32
-                          spacing: Style.spacing.sm
-
-                          Image {
-                            Layout.preferredWidth: 16
-                            Layout.preferredHeight: 16
-                            source: Quickshell.iconPath(modelData.appClass, true) || Quickshell.iconPath("application-x-executable", true)
-                          }
 
                           Text {
+                            anchors.centerIn: parent
+                            visible: workspaceCard.matchingWindows.length === 0
                             textFormat: Text.PlainText
-                            font.family: root.monoFont
-                            font.pixelSize: Style.font.caption
+                            text: root.filterText.length > 0 ? strings.t("noMatches") : strings.t("empty")
                             color: root.mutedCol
-                            text: modelData.appClass || "App"
-                          }
-
-                          Text {
-                            Layout.fillWidth: true
-                            textFormat: Text.PlainText
-                            font.family: root.bodyFont
-                            font.pixelSize: Style.font.caption
-                            color: root.fg
-                            text: modelData.title
-                            elide: Text.ElideRight
+                            font.family: root.monoFont
+                            font.pixelSize: Style.font.body
                           }
                         }
                       }
@@ -808,7 +689,7 @@ Item {
                     font.family: root.monoFont
                     font.pixelSize: Style.font.caption
                     color: root.mutedCol
-                    text: "[Esc] " + strings.t("close") + "  •  [Enter] " + strings.t("select") + "  •  [Tab/Setas] " + strings.t("navigate")
+                    text: strings.t("hints")
                   }
                 }
               }

@@ -9,8 +9,8 @@ A modern, GNOME-inspired workspace & window overview plugin for [Omarchy](https:
 - **🪟 Real Live Window Previews**: Captures high-performance snapshots of mapped windows via `grim` instead of showing generic icons.
 - **✨ Frosted Glass & Background Blur**: Translucent frosted glass backdrop with compositor blur effect using Hyprland's `layerrule`.
 - **🖥️ Simultaneous Multi-Monitor Display**: Opens on all connected monitors at the same time (`eDP-1`, `HDMI-A-1`, etc.), displaying each monitor's respective workspaces and open windows.
-- **🎯 Active Workspaces Only**: Displays only workspaces that currently have open windows, keeping the overview focused and clutter-free.
-- **🧩 Centered Mosaic Grid**: Automatically calculates proportional mosaic card dimensions, preserving each application's true aspect ratio.
+- **🎯 Workspace Map**: Shows occupied workspaces plus the active workspace on each monitor, with their windows visible together.
+- **🧩 Window Previews**: Each workspace card contains scrollable window thumbnails.
 - **🔍 Quick Search & Filter**: Instant search input pill to filter open windows by window title or application class.
 - **🖥️ Multi-Monitor Aware**: Detects active screen focus dynamically, appearing on the display you are currently working on (`eDP-1`, `HDMI-A-1`, etc.).
 - **⚡ Dual Triggers**:
@@ -89,7 +89,7 @@ git clone https://github.com/jean/omarchy-workspace-overview.git ~/.config/omarc
 | **Navigate Windows** | `Left` / `Right` / `Up` / `Down` or `Tab` |
 | **Select / Focus Window** | `Enter` or `Left Click` on card |
 | **Close Window** | Click `✕` button on top-right of window card |
-| **Switch Workspace Tab** | Click workspace chip (`WS 1`, `WS 11`, etc.) |
+| **Switch Workspace** | Click the arrow on a workspace card, or press `1–9` while the overview is open |
 | **Dismiss Overview** | `Escape` or click backdrop |
 
 ---

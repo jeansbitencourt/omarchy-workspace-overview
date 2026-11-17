@@ -6,7 +6,7 @@ A modern, GNOME-inspired workspace & window overview plugin for [Omarchy](https:
 
 ## ✨ Features
 
-- **🪟 Real Live Window Previews**: Captures high-performance snapshots of mapped windows via `grim` instead of showing generic icons.
+- **🪟 Real Live Window Previews**: Captures mapped window surfaces with `grim -T`, keeping overlapping floating windows out of each other's previews.
 - **✨ Frosted Glass & Background Blur**: Translucent frosted glass backdrop with compositor blur effect using Hyprland's `layerrule`.
 - **🖥️ Simultaneous Multi-Monitor Display**: Opens on all connected monitors at the same time (`eDP-1`, `HDMI-A-1`, etc.), displaying each monitor's respective workspaces and open windows.
 - **🎯 Workspace Map**: Shows occupied workspaces plus the active workspace on each monitor, with their windows visible together.
@@ -26,7 +26,7 @@ A modern, GNOME-inspired workspace & window overview plugin for [Omarchy](https:
 
 - **Omarchy Linux** (with `omarchy-shell` / Quickshell >= 0.1.0)
 - **Hyprland** with Lua dispatch API enabled
-- **`grim`** (for fast screencopy preview snapshots)
+- **`grim` 1.5.0 or later** with `-T` support, plus Hyprland toplevel capture support and a `stableId` for each client.
 
 ---
 

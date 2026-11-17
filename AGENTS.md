@@ -9,7 +9,7 @@ This document is intended for AI coding agents and developers maintaining or ext
 - **Target Environment**: [Omarchy](https://omarchy.org) running on Linux with Wayland and [Hyprland](https://hyprland.org).
 - **UI Engine**: [Quickshell](https://outfoxxed.me/quickshell/) (Qt 6.7+ QML with Wayland layer-shell protocol bindings).
 - **Compositor Control**: Hyprland IPC via `Quickshell.Hyprland` and `hyprctl dispatch` with Lua expressions.
-- **Screencopy Backend**: `grim` CLI tool operating against wlroots screencopy protocol.
+- **Window Capture Backend**: `grim -T` captures individual toplevels using Hyprland's toplevel export support.
 
 ---
 
@@ -45,8 +45,8 @@ This document is intended for AI coding agents and developers maintaining or ext
                                     ┌────────────────────┴────────────────────┐
                                     ▼                                         ▼
                         [capture-previews.sh]                       [Hyprland IPC Query]
-                     Runs grim sequentially for                   Fetches active workspaces
-                     each mapped window address                    and window toplevel list
+                     Runs grim -T per mapped                      Fetches active workspaces
+                     toplevel using its stableId                    and window toplevel list
                                     │                                         │
                                     └────────────────────┬────────────────────┘
                                                          ▼
@@ -79,7 +79,8 @@ Omarchy's Hyprland configuration uses Lua-based dispatching (`hl.dsp.*`). Callin
 ### B. Address Formatting & Normalization
 - `Quickshell.Hyprland.toplevels.values` exposes window addresses **without** the `0x` prefix (e.g. `5586969bdfb0`).
 - `lastIpcObject.address` and `hyprctl clients` often include the `0x` prefix (e.g. `0x5586969bdfb0`).
-- To prevent missing preview images, `capture-previews.sh` creates symlinks in `/tmp/omarchy-window-previews/` for **both** representations (`0x<addr>.jpg` and `<addr>.jpg`).
+- `hyprctl clients -j` provides each window's `stableId`, which `capture-previews.sh` passes to `grim -T`; addresses remain the cache filenames and QML lookup keys.
+- To prevent missing preview images, `capture-previews.sh` creates symlinks in `/tmp/omarchy-window-previews/` for **both** address representations (`0x<addr>.jpg` and `<addr>.jpg`).
 - In QML, `cleanAddress` strips any leading `0x` to ensure consistent file URLs.
 
 ### C. Local File URLs in Qt QML
@@ -93,8 +94,8 @@ Omarchy's Hyprland configuration uses Lua-based dispatching (`hl.dsp.*`). Callin
 - **Do not use a wildcard** like `^omarchy-workspace-overview.*`. The hot corner in `Service.qml` uses the namespace `omarchy-overview-hotcorner`. If blur is applied to a transparent 28×28px overlay window, wlroots screencopy (`grim`) hangs or stalls waiting for frame damages.
 
 ### E. Capture Sequence Timing
-- `capture-previews.sh` must execute **before** `OverlayWindow` maps and renders its backdrop. If `grim` captures after the overlay is mapped, it captures the frosted glass overlay itself rather than the window contents.
-- `openSafetyTimer` (120ms fallback) ensures that even if `grim` takes longer or fails, the overlay opens without stranding the user.
+- The current open flow starts `capture-previews.sh` before `OverlayWindow` maps. `grim -T` targets a specific toplevel, so other windows and the overview backdrop do not enter that window's image.
+- `openSafetyTimer` (180ms fallback) ensures that even if `grim` takes longer or fails, the overlay opens without stranding the user.
 
 ### F. Dual-Monitor Geometry
 - When dual monitors have different resolutions or vertical offsets (e.g., `eDP-1` at 1366×768 vs `HDMI-A-1` at 1920×1080), `OverlayWindow` dynamically inspects `Hyprland.focusedMonitor` to attach to the active display output.

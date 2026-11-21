@@ -17,14 +17,31 @@ Item {
 
   property bool opened: false
   property string filterText: ""
-  property int activeWsId: 1
   property string viewMode: "map"
   readonly property string viewModePath: Quickshell.env("HOME") + "/.config/omarchy/workspace-overview.json"
 
-  property var wsWindowsMap: ({})
-  property var wsMonitorMap: ({})
-  property var allWindows: []
   property var monitorWorkspaces: ({})
+  readonly property var workspaceSnapshot: opened ? buildWorkspaceSnapshot() : null
+
+  onWorkspaceSnapshotChanged: {
+    if (!workspaceSnapshot) return
+    // Replacing a Repeater's array model recreates its delegates.
+    var next = Object.assign({}, workspaceSnapshot)
+    var changed = Object.keys(next).length !== Object.keys(monitorWorkspaces).length
+    for (var name in next) {
+      var previous = monitorWorkspaces[name]
+      if (previous && previous.length === next[name].length && previous.every(function(ws, i) {
+        var candidate = next[name][i]
+        return ws.id === candidate.id && ws.isActive === candidate.isActive &&
+          sameWindows(ws.windows, candidate.windows)
+      })) {
+        next[name] = previous
+      } else {
+        changed = true
+      }
+    }
+    if (changed) monitorWorkspaces = next
+  }
 
   signal requestFocus()
   signal previewsUpdated()
@@ -72,7 +89,6 @@ Item {
     onExited: {
       openSafetyTimer.stop()
       root.opened = true
-      root.rebuild()
       root.previewsUpdated()
       Qt.callLater(function() { root.requestFocus() })
     }
@@ -84,7 +100,6 @@ Item {
     repeat: false
     onTriggered: {
       root.opened = true
-      root.rebuild()
       Qt.callLater(function() { root.requestFocus() })
     }
   }
@@ -98,10 +113,6 @@ Item {
   function open(payloadJson) {
     root.filterText = ""
 
-    if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.activeWorkspace) {
-      root.activeWsId = Hyprland.focusedMonitor.activeWorkspace.id
-    }
-
     Hyprland.refreshWorkspaces()
     Hyprland.refreshToplevels()
     Hyprland.refreshMonitors()
@@ -112,7 +123,6 @@ Item {
       previewProc.running = true
     } else {
       root.opened = true
-      root.rebuild()
       Qt.callLater(function() { root.requestFocus() })
     }
   }
@@ -133,14 +143,10 @@ Item {
     else root.open("")
   }
 
-  function rebuild() {
+  function buildWorkspaceSnapshot() {
     var workspaces = Hyprland.workspaces ? Hyprland.workspaces.values : []
     var toplevels = Hyprland.toplevels ? Hyprland.toplevels.values : []
     var monitors = Hyprland.monitors ? Hyprland.monitors.values : []
-
-    var actWs = (Hyprland.focusedMonitor && Hyprland.focusedMonitor.activeWorkspace)
-      ? Hyprland.focusedMonitor.activeWorkspace.id : root.activeWsId
-    root.activeWsId = actWs
 
     var nextWsMonMap = {}
     for (var w = 0; w < workspaces.length; w++) {
@@ -156,47 +162,21 @@ Item {
     }
 
     var nextWsWinMap = {}
-    var nextAllWins = []
 
     for (var j = 0; j < toplevels.length; j++) {
       var top = toplevels[j]
       var topWs = top.workspace ? top.workspace.id : -1
       if (topWs <= 0) continue
 
-      var raw = top.lastIpcObject || {}
-      var title = String(raw.title || top.title || (top.wayland ? top.wayland.title : "") || "")
-      var appClass = String(raw.class || (top.wayland ? top.wayland.appId : "") || "")
-      var addrRaw = String(raw.address || top.address || "")
-      var cleanAddr = addrRaw.replace(/^0x/, "")
-      var fullAddr = "0x" + cleanAddr
-
-      var monForWin = nextWsMonMap[topWs] || ""
-      if (!monForWin && raw.monitor !== undefined) {
-        for (var mi = 0; mi < monitors.length; mi++) {
-          if (monitors[mi].id === raw.monitor || monitors[mi].name === raw.monitor) {
-            monForWin = monitors[mi].name
-            break
-          }
-        }
-      }
-
-      var winObj = {
-        address: fullAddr,
-        cleanAddress: cleanAddr,
-        title: title,
-        appClass: appClass,
-        workspaceId: topWs,
-        monitorName: monForWin,
-        focused: !!top.activated,
-        floating: !!raw.floating,
-        fullscreen: !!raw.fullscreen,
-        width: (raw.size && raw.size[0] && raw.size[0] > 0) ? raw.size[0] : 800,
-        height: (raw.size && raw.size[1] && raw.size[1] > 0) ? raw.size[1] : 600
-      }
+      var cleanAddr = String(top.address || "").replace(/^0x/, "")
+      if (!cleanAddr) continue
 
       if (!nextWsWinMap[topWs]) nextWsWinMap[topWs] = []
-      nextWsWinMap[topWs].push(winObj)
-      nextAllWins.push(winObj)
+      nextWsWinMap[topWs].push({
+        address: "0x" + cleanAddr,
+        cleanAddress: cleanAddr,
+        toplevel: top
+      })
     }
 
     // Organize workspaces per monitor
@@ -213,7 +193,6 @@ Item {
         if (wsMon === curMonName || (!wsMon && Math.floor((wsId - 1) / 10) === mon.id)) {
           monWsList.push({
             id: wsId,
-            name: String(wsId),
             isActive: mon.activeWorkspace && mon.activeWorkspace.id === wsId,
             windows: nextWsWinMap[wsId]
           })
@@ -227,7 +206,6 @@ Item {
       if (!monWsList.some(function(ws) { return ws.id === actId })) {
         monWsList.push({
           id: actId,
-          name: String(actId),
           isActive: true,
           windows: []
         })
@@ -237,10 +215,28 @@ Item {
       nextMonWorkspaces[curMonName] = monWsList
     }
 
-    root.wsMonitorMap = nextWsMonMap
-    root.wsWindowsMap = nextWsWinMap
-    root.allWindows = nextAllWins
-    root.monitorWorkspaces = nextMonWorkspaces
+    return nextMonWorkspaces
+  }
+
+  function sameWindows(previous, next) {
+    return previous.length === next.length && previous.every(function(win, i) {
+      return win.address === next[i].address && win.toplevel === next[i].toplevel
+    })
+  }
+
+  function windowTitle(win) {
+    var top = win.toplevel
+    return top ? String(top.title || (top.wayland ? top.wayland.title : "") || "") : ""
+  }
+
+  function windowClass(win) {
+    var top = win.toplevel
+    return top ? String((top.lastIpcObject || {}).class || (top.wayland ? top.wayland.appId : "") || "") : ""
+  }
+
+  function matchesWindow(win, query) {
+    return query === "" || windowTitle(win).toLowerCase().includes(query) ||
+      windowClass(win).toLowerCase().includes(query)
   }
 
   function activateWindow(win) {
@@ -251,7 +247,6 @@ Item {
 
   function focusWorkspace(id) {
     Hyprland.dispatch('hl.dsp.focus({ workspace = "' + id + '" })')
-    root.rebuild()
   }
 
   function closeWindow(address) {
@@ -259,17 +254,7 @@ Item {
     Hyprland.dispatch('hl.dsp.window.close({ window = "address:' + address + '" })')
     Qt.callLater(function() {
       Hyprland.refreshToplevels()
-      root.rebuild()
     })
-  }
-
-  Connections {
-    target: Hyprland
-    function onRawEvent(event) {
-      if (root.opened) {
-        root.rebuild()
-      }
-    }
   }
 
   // Multi-Monitor Overview surfaces: one PanelWindow per connected display
@@ -296,18 +281,12 @@ Item {
         readonly property string monName: hyprMonitor ? String(hyprMonitor.name || "") : (modelData ? modelData.name : "")
         readonly property bool isFocusedScreen: Hyprland.focusedMonitor && Hyprland.focusedMonitor.name === monName
 
-        property int activeWsId: hyprMonitor && hyprMonitor.activeWorkspace ? hyprMonitor.activeWorkspace.id : 1
-        property int viewWsId: activeWsId
         property int selectedIndex: 0
+        property var previousWindows: []
         property bool contentRevealed: false
-
-        onActiveWsIdChanged: {
-          viewWsId = activeWsId
-        }
 
         onVisibleChanged: {
           if (visible) {
-            viewWsId = activeWsId
             selectedIndex = 0
             contentRevealed = false
             Qt.callLater(function() {
@@ -346,13 +325,21 @@ Item {
             var windows = screenWorkspaces[i].windows
             for (var j = 0; j < windows.length; j++) {
               var win = windows[j]
-              if (filterLower === "" || win.title.toLowerCase().indexOf(filterLower) !== -1 ||
-                  win.appClass.toLowerCase().indexOf(filterLower) !== -1) {
+              if (root.matchesWindow(win, filterLower)) {
                 matches.push(win)
               }
             }
           }
           return matches
+        }
+
+        onCurrentWindowsChanged: {
+          var selected = previousWindows[selectedIndex]
+          var index = selected ? currentWindows.findIndex(function(win) {
+            return win.address === selected.address
+          }) : -1
+          selectedIndex = index >= 0 ? index : Math.max(0, Math.min(selectedIndex, currentWindows.length - 1))
+          previousWindows = currentWindows
         }
 
         // Translucent glassy scrim with desktop blur
@@ -406,7 +393,6 @@ Item {
               if (event.key === Qt.Key_Escape) {
                 if (root.filterText.length > 0) {
                   root.filterText = ""
-                  root.rebuild()
                 } else {
                   root.dismiss()
                 }
@@ -441,12 +427,10 @@ Item {
               } else if (event.key === Qt.Key_Backspace) {
                 if (root.filterText.length > 0) {
                   root.filterText = root.filterText.substring(0, root.filterText.length - 1)
-                  root.rebuild()
                   event.accepted = true
                 }
               } else if (event.text && event.text.length === 1 && !event.modifiers) {
                 root.filterText += event.text
-                root.rebuild()
                 event.accepted = true
               }
             }
@@ -564,14 +548,19 @@ Item {
                     delegate: Rectangle {
                       id: workspaceCard
                       required property var modelData
-                      readonly property var matchingWindows: {
+                      property var matchingWindows: []
+                      readonly property var filteredWindows: {
                         var query = root.filterText.toLowerCase().trim()
-                        if (query === "") return modelData.windows
-                        return modelData.windows.filter(function(win) {
-                          return win.title.toLowerCase().indexOf(query) !== -1 ||
-                                 win.appClass.toLowerCase().indexOf(query) !== -1
+                        return query === "" ? modelData.windows : modelData.windows.filter(function(win) {
+                          return root.matchesWindow(win, query)
                         })
                       }
+                      function updateMatchingWindows() {
+                        // A live title can change while the search still matches the same windows.
+                        if (!root.sameWindows(matchingWindows, filteredWindows)) matchingWindows = filteredWindows
+                      }
+                      onFilteredWindowsChanged: updateMatchingWindows()
+                      Component.onCompleted: updateMatchingWindows()
                       readonly property int tileColumns: {
                         var count = matchingWindows.length
                         if (count <= 1 || width < 350) return 1
@@ -671,6 +660,7 @@ Item {
                               delegate: Rectangle {
                                 id: winTile
                                 required property var modelData
+                                readonly property string appClass: root.windowClass(modelData)
                                 readonly property bool isSelected: panelWin.currentWindows.length > panelWin.selectedIndex &&
                                   panelWin.currentWindows[panelWin.selectedIndex].address === modelData.address
                                 Layout.preferredWidth: workspaceCard.tileWidth
@@ -704,7 +694,7 @@ Item {
                                   width: 32
                                   height: 32
                                   visible: previewImg.status !== Image.Ready
-                                  source: Quickshell.iconPath(modelData.appClass, true) || Quickshell.iconPath("application-x-executable", true)
+                                  source: Quickshell.iconPath(winTile.appClass, true) || Quickshell.iconPath("application-x-executable", true)
                                 }
                                 RowLayout {
                                   anchors.left: parent.left
@@ -716,12 +706,12 @@ Item {
                                   Image {
                                     Layout.preferredWidth: 15
                                     Layout.preferredHeight: 15
-                                    source: Quickshell.iconPath(modelData.appClass, true) || Quickshell.iconPath("application-x-executable", true)
+                                    source: Quickshell.iconPath(winTile.appClass, true) || Quickshell.iconPath("application-x-executable", true)
                                   }
                                   Text {
                                     Layout.fillWidth: true
                                     textFormat: Text.PlainText
-                                    text: modelData.title || modelData.appClass
+                                    text: root.windowTitle(winTile.modelData) || winTile.appClass
                                     elide: Text.ElideRight
                                     color: root.fg
                                     font.family: root.bodyFont

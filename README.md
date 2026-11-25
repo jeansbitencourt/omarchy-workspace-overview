@@ -6,7 +6,7 @@ A modern, GNOME-inspired workspace & window overview plugin for [Omarchy](https:
 
 ## ✨ Features
 
-- **🪟 Real Live Window Previews**: Captures mapped window surfaces with `grim -T`, keeping overlapping floating windows out of each other's previews.
+- **🪟 Unoccluded Window Previews**: Quickshell captures each window's own toplevel with ScreencopyView, so floating windows do not cover other thumbnails. An app icon stays visible until a frame is ready; fresh previews are captured when the overview opens.
 - **✨ Frosted Glass & Background Blur**: Translucent frosted glass backdrop with compositor blur effect using Hyprland's `layerrule`.
 - **🖥️ Simultaneous Multi-Monitor Display**: Opens on all connected monitors at the same time (`eDP-1`, `HDMI-A-1`, etc.), displaying each monitor's respective workspaces and open windows.
 - **🎯 Workspace Map**: Shows occupied workspaces plus the active workspace on each monitor, with their windows visible together.
@@ -24,9 +24,8 @@ A modern, GNOME-inspired workspace & window overview plugin for [Omarchy](https:
 
 ## 📋 Requirements
 
-- **Omarchy Linux** (with `omarchy-shell` / Quickshell >= 0.1.0)
-- **Hyprland** with Lua dispatch API enabled
-- **`grim` 1.5.0 or later** with `-T` support, plus Hyprland toplevel capture support and a `stableId` for each client.
+- **Omarchy Linux** with omarchy-shell / Quickshell 0.3.1 or newer and Wayland ScreencopyView support.
+- **Hyprland** with Lua dispatch API and hyprland-toplevel-export-v1 support.
 
 ---
 
@@ -46,7 +45,6 @@ git clone https://github.com/jean/omarchy-workspace-overview.git ~/.config/omarc
 1. **Clone the plugin repository**:
    ```bash
    git clone https://github.com/jean/omarchy-workspace-overview.git ~/.config/omarchy/plugins/jean.workspace-overview
-   chmod +x ~/.config/omarchy/plugins/jean.workspace-overview/capture-previews.sh
    ```
 
 2. **Enable the plugin in Omarchy**:
@@ -102,7 +100,6 @@ git clone https://github.com/jean/omarchy-workspace-overview.git ~/.config/omarc
 ├── manifest.json         # Omarchy shell plugin manifest
 ├── Overview.qml          # Main fullscreen overlay UI (Search, Workspaces, Mosaic)
 ├── Service.qml           # Background daemon managing per-screen hot corner surfaces
-├── capture-previews.sh   # grim screencopy script saving to /tmp/omarchy-window-previews/
 ├── install.sh            # Automated installer & Hyprland config validator
 ├── i18n/                 # Multi-language translation catalogs
 │   ├── en.json

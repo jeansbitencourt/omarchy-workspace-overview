@@ -9,7 +9,7 @@ This document is intended for AI coding agents and developers maintaining or ext
 - **Target Environment**: [Omarchy](https://omarchy.org) running on Linux with Wayland and [Hyprland](https://hyprland.org).
 - **UI Engine**: [Quickshell](https://outfoxxed.me/quickshell/) (Qt 6.7+ QML with Wayland layer-shell protocol bindings).
 - **Compositor Control**: Hyprland IPC via `Quickshell.Hyprland` and `hyprctl dispatch` with Lua expressions.
-- **Window Capture Backend**: `grim -T` captures individual toplevels using Hyprland's toplevel export support.
+- **Window Capture Backend**: Quickshell ScreencopyView captures each window's Wayland toplevel through Hyprland's toplevel export support.
 
 ---
 
@@ -20,7 +20,6 @@ This document is intended for AI coding agents and developers maintaining or ext
 ├── manifest.json         # Plugin metadata, kinds: ["service", "overlay"], entryPoints
 ├── Service.qml           # Background daemon service for hot-corner surface management
 ├── Overview.qml          # Fullscreen OverlayWindow (search pill, workspace chips, mosaic cards)
-├── capture-previews.sh   # Screencopy snapshot generator
 ├── install.sh            # Auto-installer and Hyprland configuration updater
 ├── i18n/                 # Multi-language translation catalog directory
 │   ├── en.json
@@ -34,30 +33,9 @@ This document is intended for AI coding agents and developers maintaining or ext
 
 ## 3. Architecture & Data Flow
 
-```
-   [User Input]
-   ├─ Super+Tab (Hyprland Lua Binding) ──┐
-   ├─ Top-Left Corner (Service.qml)    ──┼──> omarchy-shell shell toggle jean.workspace-overview
-   └─ CLI / IPC                        ──┘               │
-                                                         ▼
-                                                [Overview.qml: open()]
-                                                         │
-                                    ┌────────────────────┴────────────────────┐
-                                    ▼                                         ▼
-                        [capture-previews.sh]                       [Hyprland IPC Query]
-                     Runs grim -T per mapped                      Fetches active workspaces
-                     toplevel using its stableId                    and window toplevel list
-                                    │                                         │
-                                    └────────────────────┬────────────────────┘
-                                                         ▼
-                                            [OverlayWindow Rendered]
-                                           - Frosted glass + Blur
-                                           - Top Search Pill
-                                           - Active Workspaces Row
-                                           - Aspect-Preserving Mosaic
-```
+Opening Overview.qml refreshes the Hyprland workspace and toplevel models, then creates one ScreencopyView per window card. Each view captures the window's own toplevel through the Wayland source on its Quickshell Toplevel object. The app icon remains visible until a frame arrives.
 
----
+Service.qml manages the hot-corner trigger and toggles the overlay. It does not launch background capture processes.
 
 ## 4. Critical Technical Constraints & Edge Cases
 
@@ -76,26 +54,26 @@ Omarchy's Hyprland configuration uses Lua-based dispatching (`hl.dsp.*`). Callin
   Hyprland.dispatch('hl.dsp.window.close({ window = "address:' + address + '" })')
   ```
 
-### B. Address Formatting & Normalization
-- `Quickshell.Hyprland.toplevels.values` exposes window addresses **without** the `0x` prefix (e.g. `5586969bdfb0`).
-- `lastIpcObject.address` and `hyprctl clients` often include the `0x` prefix (e.g. `0x5586969bdfb0`).
-- `hyprctl clients -j` provides each window's `stableId`, which `capture-previews.sh` passes to `grim -T`; addresses remain the cache filenames and QML lookup keys.
-- To prevent missing preview images, `capture-previews.sh` creates symlinks in `/tmp/omarchy-window-previews/` for **both** address representations (`0x<addr>.jpg` and `<addr>.jpg`).
-- In QML, `cleanAddress` strips any leading `0x` to ensure consistent file URLs.
+### B. Window Identity and Capture Sources
+
+- Quickshell.Hyprland.toplevels.values exposes each window as a Toplevel object with an address and a Wayland capture source.
+- Window records retain that object as toplevel; window cards bind ScreencopyView.captureSource to modelData.toplevel?.wayland.
+- Normalize addresses for focus and selection keys. No stableId command argument, temporary JPEG cache, address symlink, or local file URL is needed for previews.
 
 ### C. Local File URLs in Qt QML
 - **Never append query parameters** (like `?v=123`) to `file://` URLs in `QQuickImage`. In Qt Quick, query parameters on local file schemes are treated literally as part of the filename on disk, resulting in `Cannot open: file:///...jpg?v=...`.
 
-### D. Layer Shell Blur & Screencopy Deadlocks
-- In `~/.config/hypr/looknfeel.lua`, the layer rule **must strictly match** the overlay namespace:
-  ```lua
-  match = { namespace = "^omarchy-workspace-overview$" }
-  ```
-- **Do not use a wildcard** like `^omarchy-workspace-overview.*`. The hot corner in `Service.qml` uses the namespace `omarchy-overview-hotcorner`. If blur is applied to a transparent 28×28px overlay window, wlroots screencopy (`grim`) hangs or stalls waiting for frame damages.
+### D. Layer Shell Blur
 
-### E. Capture Sequence Timing
-- The current open flow starts `capture-previews.sh` before `OverlayWindow` maps. `grim -T` targets a specific toplevel, so other windows and the overview backdrop do not enter that window's image.
-- `openSafetyTimer` (180ms fallback) ensures that even if `grim` takes longer or fails, the overlay opens without stranding the user.
+- In ~/.config/hypr/looknfeel.lua, the layer rule should strictly match the overview namespace.
+- Keep the hot-corner namespace separate. The corner is nearly transparent and should not receive the overview blur.
+
+### E. Capture Lifecycle
+
+- Window cards create ScreencopyView instances only while the overview is open.
+- Set live to false for a single frame and keep the app icon visible while hasContent is false.
+- Closing the overview sets each view's captureSource to null, releasing the compositor capture while keeping workspace card data available.
+- Previews are captured when the overview opens; Service.qml does not pre-warm them in the background.
 
 ### F. Dual-Monitor Geometry
 - When dual monitors have different resolutions or vertical offsets (e.g., `eDP-1` at 1366×768 vs `HDMI-A-1` at 1920×1080), `OverlayWindow` dynamically inspects `Hyprland.focusedMonitor` to attach to the active display output.

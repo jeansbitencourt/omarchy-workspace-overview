@@ -44,7 +44,6 @@ Item {
   }
 
   signal requestFocus()
-  signal previewsUpdated()
 
   FileView {
     id: viewModeFile
@@ -82,28 +81,6 @@ Item {
   readonly property string monoFont: Style.fontFamily
   readonly property string bodyFont: Style.font.menuFamily
 
-  // Fast background preview capture
-  Process {
-    id: previewProc
-    command: [Quickshell.env("HOME") + "/.config/omarchy/plugins/jean.workspace-overview/capture-previews.sh"]
-    onExited: {
-      openSafetyTimer.stop()
-      root.opened = true
-      root.previewsUpdated()
-      Qt.callLater(function() { root.requestFocus() })
-    }
-  }
-
-  Timer {
-    id: openSafetyTimer
-    interval: 180
-    repeat: false
-    onTriggered: {
-      root.opened = true
-      Qt.callLater(function() { root.requestFocus() })
-    }
-  }
-
   // Translations
   Commons.Translations {
     id: strings
@@ -117,14 +94,8 @@ Item {
     Hyprland.refreshToplevels()
     Hyprland.refreshMonitors()
 
-    // Capture clean screen before overlays map
-    if (!previewProc.running) {
-      openSafetyTimer.restart()
-      previewProc.running = true
-    } else {
-      root.opened = true
-      Qt.callLater(function() { root.requestFocus() })
-    }
+    root.opened = true
+    Qt.callLater(function() { root.requestFocus() })
   }
 
   function close() {
@@ -174,7 +145,6 @@ Item {
       if (!nextWsWinMap[topWs]) nextWsWinMap[topWs] = []
       nextWsWinMap[topWs].push({
         address: "0x" + cleanAddr,
-        cleanAddress: cleanAddr,
         toplevel: top
       })
     }
@@ -677,24 +647,28 @@ Item {
                                   cursorShape: Qt.PointingHandCursor
                                   onClicked: root.activateWindow(modelData)
                                 }
-                                Image {
-                                  id: previewImg
+                                Item {
+                                  id: previewFrame
                                   anchors.fill: parent
                                   anchors.margins: 5
                                   anchors.bottomMargin: 28
-                                  fillMode: Image.PreserveAspectFit
-                                  asynchronous: true
-                                  cache: false
-                                  source: Util.fileUrl("/tmp/omarchy-window-previews/" + modelData.cleanAddress + ".jpg")
-                                  function reload() { var previous = source; source = ""; source = previous }
-                                  Connections { target: root; function onPreviewsUpdated() { previewImg.reload() } }
-                                }
-                                Image {
-                                  anchors.centerIn: previewImg
-                                  width: 32
-                                  height: 32
-                                  visible: previewImg.status !== Image.Ready
-                                  source: Quickshell.iconPath(winTile.appClass, true) || Quickshell.iconPath("application-x-executable", true)
+
+                                  ScreencopyView {
+                                    id: previewCapture
+                                    anchors.centerIn: parent
+                                    captureSource: root.opened ? (modelData.toplevel?.wayland ?? null) : null
+                                    constraintSize: Qt.size(parent.width, parent.height)
+                                    live: false
+                                    paintCursor: false
+                                    visible: hasContent
+                                  }
+                                  Image {
+                                    anchors.centerIn: parent
+                                    width: 32
+                                    height: 32
+                                    visible: !previewCapture.hasContent
+                                    source: Quickshell.iconPath(winTile.appClass, true) || Quickshell.iconPath("application-x-executable", true)
+                                  }
                                 }
                                 RowLayout {
                                   anchors.left: parent.left

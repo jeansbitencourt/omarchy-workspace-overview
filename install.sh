@@ -19,9 +19,6 @@ if [[ "$SCRIPT_DIR" != "$TARGET_DIR" ]]; then
   echo "Copied plugin to $TARGET_DIR"
 fi
 
-# Ensure capture script is executable
-chmod +x "$TARGET_DIR/capture-previews.sh"
-
 # Enable plugin in Omarchy
 echo "==> Enabling plugin in omarchy..."
 omarchy plugin enable "$PLUGIN_ID" || true
